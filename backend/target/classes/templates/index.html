@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f3f5f0">
+    <title>Folio — Chat with your documents</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            color-scheme: light;
+            --canvas: #f3f5f0;
+            --paper: #fffefa;
+            --ink: #202923;
+            --muted: #727b73;
+            --line: #e2e6df;
+            --forest: #254f3d;
+            --forest-dark: #193b2d;
+            --lime: #d8ec87;
+            --coral: #d9694b;
+            --error: #ad3b32;
+            --mono: 'IBM Plex Mono', monospace;
+            --sans: 'DM Sans', sans-serif;
+        }
+        * { box-sizing: border-box; }
+        html, body { min-height: 100%; }
+        body {
+            margin: 0;
+            color: var(--ink);
+            background-color: var(--canvas);
+            background-image: radial-gradient(#dce2d8 0.7px, transparent 0.7px);
+            background-size: 18px 18px;
+            font-family: var(--sans);
+        }
+        button, input { font: inherit; }
+        button { cursor: pointer; }
+        button:focus-visible, input:focus-visible, .drop-zone:focus-visible { outline: 3px solid #9acb94; outline-offset: 3px; }
+        .app-shell { min-height: 100vh; display: grid; grid-template-columns: 292px minmax(0, 1fr); }
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            padding: 27px 22px 20px;
+            color: #f4f7ef;
+            background: var(--forest-dark);
+        }
+        .brand { display: flex; align-items: center; gap: 11px; margin-bottom: 36px; }
+        .brand-mark { display: grid; place-items: center; width: 35px; height: 35px; border-radius: 10px; color: var(--forest-dark); background: var(--lime); font-size: 19px; font-weight: 700; }
+        .brand-name { font-size: 17px; font-weight: 700; letter-spacing: 0; }
+        .brand-caption { margin-top: 2px; color: #b7c9ba; font-size: 11px; }
+        .side-label, .eyebrow { font-family: var(--mono); font-size: 10px; letter-spacing: 0; text-transform: uppercase; }
+        .side-label { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; color: #a9c1ad; }
+        .upload-count { color: var(--lime); }
+        .drop-zone {
+            display: grid;
+            justify-items: center;
+            gap: 7px;
+            padding: 19px 13px 17px;
+            border: 1px dashed #65816c;
+            border-radius: 7px;
+            color: #eff6eb;
+            text-align: center;
+            background: rgba(255,255,255,.035);
+            transition: border-color .18s, background .18s, transform .18s;
+        }
+        .drop-zone:hover, .drop-zone.is-dragging { border-color: var(--lime); background: rgba(216,236,135,.09); transform: translateY(-1px); }
+        .upload-symbol { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; color: var(--forest-dark); background: var(--lime); font-size: 20px; }
+        .drop-title { font-size: 13px; font-weight: 600; }
+        .drop-hint { color: #aac0ae; font-size: 11px; }
+        .file-picker { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+        .selected-files { display: grid; gap: 5px; margin-top: 8px; }
+        .selected-file { overflow: hidden; color: #c9d7c9; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+        .primary-button { width: 100%; min-height: 40px; margin-top: 10px; padding: 9px 12px; border: 0; border-radius: 6px; color: var(--forest-dark); background: var(--lime); font-size: 12px; font-weight: 700; transition: background .15s, transform .15s; }
+        .primary-button:hover:not(:disabled) { background: #e5f4a7; transform: translateY(-1px); }
+        button:disabled { cursor: wait; opacity: .58; }
+        .upload-status { min-height: 18px; margin: 8px 0 0; color: #cce2be; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+        .upload-status.is-error { color: #ffc2b5; }
+        .documents { margin-top: 32px; }
+        .document-list { display: grid; gap: 3px; max-height: 38vh; overflow: auto; }
+        .document-row { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 9px 8px; border-radius: 5px; color: #e3ece2; font-size: 12px; }
+        .document-row:hover { background: rgba(255,255,255,.07); }
+        .document-icon { display: grid; flex: 0 0 25px; place-items: center; height: 29px; border: 1px solid #557360; border-radius: 5px; color: var(--lime); font-family: var(--mono); font-size: 9px; }
+        .document-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .empty-documents { padding: 12px 8px; color: #a9c1ad; font-size: 12px; line-height: 1.55; }
+        .side-footer { margin-top: auto; padding-top: 20px; border-top: 1px solid #3a5a48; }
+        .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-value { color: var(--lime); font-size: 19px; font-weight: 600; }
+        .stat-name { margin-top: 2px; color: #a9c1ad; font-family: var(--mono); font-size: 9px; text-transform: uppercase; }
+        .main { display: flex; min-width: 0; flex-direction: column; padding: 0 5.2vw; }
+        .topline { display: flex; align-items: center; justify-content: space-between; min-height: 69px; border-bottom: 1px solid rgba(32,41,35,.11); }
+        .breadcrumb { color: var(--muted); font-size: 12px; }
+        .breadcrumb strong { color: var(--ink); font-weight: 600; }
+        .connection { display: flex; align-items: center; gap: 7px; color: var(--muted); font-family: var(--mono); font-size: 10px; }
+        .connection-dot { width: 7px; height: 7px; border-radius: 50%; background: #5d9b69; box-shadow: 0 0 0 3px rgba(93,155,105,.13); }
+        .workspace { display: flex; width: min(100%, 860px); min-height: calc(100vh - 70px); flex: 1; flex-direction: column; margin: 0 auto; }
+        .intro { padding: clamp(38px, 8vh, 76px) 0 28px; animation: arrive .45s ease-out both; }
+        .eyebrow { margin: 0 0 12px; color: var(--coral); }
+        h1 { max-width: 640px; margin: 0; font-size: clamp(30px, 4vw, 43px); font-weight: 500; line-height: 1.12; letter-spacing: 0; }
+        .intro-copy { max-width: 560px; margin: 12px 0 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
+        .conversation { display: grid; gap: 22px; padding: 8px 0 26px; }
+        .welcome { max-width: 590px; padding: 20px 22px; border: 1px solid var(--line); border-left: 3px solid var(--coral); border-radius: 6px; background: rgba(255,254,250,.75); animation: arrive .5s .08s ease-out both; }
+        .welcome-title { margin: 0 0 7px; font-size: 13px; font-weight: 700; }
+        .welcome-copy { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.65; }
+        .turn { display: grid; gap: 10px; animation: arrive .25s ease-out both; }
+        .question { justify-self: end; max-width: min(82%, 610px); padding: 12px 15px; border-radius: 7px 7px 2px 7px; color: white; background: var(--forest); font-size: 13px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .answer { max-width: 720px; padding: 4px 0 0; font-size: 14px; line-height: 1.8; overflow-wrap: anywhere; white-space: pre-wrap; }
+        .answer-label { display: flex; align-items: center; gap: 8px; color: var(--forest); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+        .answer-label::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--coral); }
+        .source { display: inline-flex; align-items: center; gap: 7px; justify-self: start; margin-top: 3px; padding: 7px 10px; border: 1px solid #e6e0cf; border-radius: 4px; color: #625b46; background: #fbf7e9; font-family: var(--mono); font-size: 10px; overflow-wrap: anywhere; }
+        .error-message { padding: 10px 12px; border: 1px solid #efc8c1; border-radius: 5px; color: var(--error); background: #fff4f1; font-size: 12px; line-height: 1.5; }
+        .loading { display: none; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
+        .loading.is-visible { display: flex; }
+        .loading-dots { display: flex; gap: 3px; }
+        .loading-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--coral); animation: pulse .9s infinite alternate; }
+        .loading-dots span:nth-child(2) { animation-delay: .2s; }
+        .loading-dots span:nth-child(3) { animation-delay: .4s; }
+        .composer-wrap { position: sticky; bottom: 0; margin-top: auto; padding: 16px 0 22px; background: linear-gradient(180deg, rgba(243,245,240,0), var(--canvas) 15%); }
+        .composer { display: flex; align-items: flex-end; gap: 12px; padding: 10px; border: 1px solid #d8ded5; border-radius: 7px; background: var(--paper); box-shadow: 0 10px 30px rgba(36,58,42,.07); transition: border-color .15s, box-shadow .15s; }
+        .composer:focus-within { border-color: #91aa8c; box-shadow: 0 10px 30px rgba(36,58,42,.1), 0 0 0 3px rgba(145,170,140,.13); }
+        .query-input { width: 100%; min-height: 40px; max-height: 140px; resize: vertical; padding: 10px 9px; border: 0; outline: 0; color: var(--ink); background: transparent; font-size: 13px; line-height: 1.5; }
+        .query-input::placeholder { color: #9aa198; }
+        .send-button { display: grid; flex: 0 0 40px; place-items: center; width: 40px; height: 40px; border: 0; border-radius: 5px; color: white; background: var(--forest); font-size: 19px; transition: background .15s, transform .15s; }
+        .send-button:hover:not(:disabled) { background: #326348; transform: translateY(-1px); }
+        .composer-note { margin: 8px 3px 0; color: #8b938a; font-family: var(--mono); font-size: 9px; }
+        @keyframes arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes pulse { to { opacity: .3; transform: translateY(-2px); } }
+        @media (max-width: 780px) {
+            .app-shell { grid-template-columns: 1fr; }
+            .sidebar { padding: 15px 18px; }
+            .brand { margin-bottom: 15px; }
+            .side-label { margin-bottom: 8px; }
+            .drop-zone { grid-template-columns: 34px 1fr; justify-items: start; text-align: left; padding: 10px 12px; }
+            .upload-symbol { grid-row: span 2; }
+            .drop-hint { grid-column: 2; }
+            .primary-button { min-height: 38px; }
+            .documents { margin-top: 16px; }
+            .document-list { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); max-height: 110px; }
+            .empty-documents { padding: 5px 0; }
+            .side-footer { padding-top: 12px; }
+            .stats { max-width: 300px; }
+            .stat-value { font-size: 16px; }
+            .main { padding: 0 18px; }
+            .topline { min-height: 54px; }
+            .workspace { min-height: calc(100vh - 54px); }
+            .intro { padding: 38px 0 20px; }
+            h1 { font-size: 32px; }
+        }
+        @media (max-width: 420px) {
+            .connection { font-size: 9px; }
+            .breadcrumb { font-size: 11px; }
+            .main { padding: 0 14px; }
+            .sidebar { padding: 14px; }
+            .question { max-width: 94%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-shell">
+    <aside class="sidebar" aria-label="Document library">
+        <div class="brand">
+            <div class="brand-mark" aria-hidden="true">f.</div>
+            <div><div class="brand-name">folio</div><div class="brand-caption">Your research, in context</div></div>
+        </div>
+
+        <section aria-labelledby="uploadHeading">
+            <div class="side-label"><span id="uploadHeading">ADD TO YOUR LIBRARY</span><span class="upload-count" id="uploadCount" th:text="${#lists.size(indexedFiles)} + ' files'">0 files</span></div>
+            <form id="uploadForm">
+                <label class="drop-zone" id="dropZone" for="pdfFiles" tabindex="0">
+                    <span class="upload-symbol" aria-hidden="true">+</span>
+                    <span class="drop-title">Choose PDFs or drop them here</span>
+                    <span class="drop-hint">PDF format · up to 200 MB per upload</span>
+                </label>
+                <input class="file-picker" type="file" id="pdfFiles" multiple accept="application/pdf,.pdf">
+                <div class="selected-files" id="selectedFiles" aria-live="polite"></div>
+                <button class="primary-button" type="submit" id="uploadBtn" disabled>Index documents</button>
+                <p class="upload-status" id="uploadStatus" role="status" aria-live="polite"></p>
+            </form>
+        </section>
+
+        <section class="documents" aria-labelledby="documentsHeading">
+            <div class="side-label"><span id="documentsHeading">YOUR DOCUMENTS</span></div>
+            <div class="document-list" id="indexedFilesContainer">
+                <div class="document-row" th:each="file : ${indexedFiles}"><span class="document-icon" aria-hidden="true">PDF</span><span class="document-name" th:text="${file}"></span></div>
+                <div class="empty-documents" id="emptyDocuments" th:if="${#lists.isEmpty(indexedFiles)}">Your library is empty. Add a PDF to start asking questions.</div>
+            </div>
+        </section>
+
+        <div class="side-footer">
+            <div class="stats">
+                <div><div class="stat-value" id="totalChunksStat" th:text="${totalChunks}">0</div><div class="stat-name">Text segments</div></div>
+                <div><div class="stat-value" id="totalQuestionsStat" th:text="${totalQuestions}">0</div><div class="stat-name">Questions</div></div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main">
+        <header class="topline">
+            <div class="breadcrumb">Workspace <span aria-hidden="true">/</span> <strong>Ask your library</strong></div>
+            <div class="connection"><span class="connection-dot" aria-hidden="true"></span> PRIVATE WORKSPACE</div>
+        </header>
+
+        <section class="workspace" aria-labelledby="pageTitle">
+            <div class="intro">
+                <p class="eyebrow">A clearer way to work through your reading</p>
+                <h1 id="pageTitle">Your documents,<br>in conversation.</h1>
+                <p class="intro-copy">Ask a question about your PDFs. Folio finds the relevant passages and gives you an answer with its source.</p>
+            </div>
+
+            <div class="conversation" id="conversation" aria-live="polite">
+                <div class="welcome" id="welcomeMessage">
+                    <p class="welcome-title">Start with a question</p>
+                    <p class="welcome-copy">Try “What are the main findings?” or “Summarize the key arguments in this paper.” Answers are grounded in the documents in your library.</p>
+                </div>
+                <div class="loading" id="loading" role="status">
+                    <span class="loading-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                    Searching your documents and preparing an answer…
+                </div>
+            </div>
+
+            <div class="composer-wrap">
+                <form class="composer" id="queryForm">
+                    <textarea class="query-input" id="queryInput" rows="1" placeholder="Ask something about your documents…" aria-label="Question about your documents" required></textarea>
+                    <button class="send-button" id="queryBtn" type="submit" aria-label="Send question" title="Send question">↑</button>
+                </form>
+                <p class="composer-note">ANSWERS ARE GENERATED FROM YOUR INDEXED DOCUMENTS</p>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script>
+    const fileInput = document.getElementById('pdfFiles');
+    const selectedFiles = document.getElementById('selectedFiles');
+    const uploadButton = document.getElementById('uploadBtn');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const dropZone = document.getElementById('dropZone');
+    const conversation = document.getElementById('conversation');
+    const queryInput = document.getElementById('queryInput');
+
+    function showError(message) {
+        const error = document.createElement('div');
+        error.className = 'error-message';
+        error.setAttribute('role', 'alert');
+        error.textContent = friendlyError(message);
+        conversation.appendChild(error);
+        error.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function friendlyError(message) {
+        const rawMessage = String(message || 'The request could not be completed.');
+        let detail = rawMessage;
+        try {
+            const payload = JSON.parse(rawMessage);
+            detail = payload.error?.message || payload.message || rawMessage;
+        } catch (parseError) {
+            detail = rawMessage;
+        }
+        if (/429|RESOURCE_EXHAUSTED|quota exceeded|exceeded your current quota/i.test(rawMessage + detail)) {
+            if (/embed_content|embedding/i.test(rawMessage + detail)) {
+                return 'Google AI embedding quota is temporarily exhausted. Wait for the quota window to reset, or check the API key’s quota and billing, then retry.';
+            }
+            return 'Google AI request quota is temporarily exhausted. Wait for the quota window to reset, or check the API key’s quota and billing, then retry.';
+        }
+        return detail.length > 240 ? `${detail.slice(0, 237)}...` : detail;
+    }
+
+    function displaySelectedFiles() {
+        selectedFiles.replaceChildren();
+        const files = Array.from(fileInput.files || []);
+        files.forEach((file) => {
+            const name = document.createElement('div');
+            name.className = 'selected-file';
+            name.textContent = file.name;
+            selectedFiles.appendChild(name);
+        });
+        uploadButton.disabled = files.length === 0;
+    }
+
+    fileInput.addEventListener('change', displaySelectedFiles);
+    dropZone.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            fileInput.click();
+        }
+    });
+    ['dragenter', 'dragover'].forEach((eventName) => dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropZone.classList.add('is-dragging');
+    }));
+    ['dragleave', 'drop'].forEach((eventName) => dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropZone.classList.remove('is-dragging');
+    }));
+    dropZone.addEventListener('drop', (event) => {
+        const pdfs = Array.from(event.dataTransfer.files).filter((file) => file.name.toLowerCase().endsWith('.pdf'));
+        const transfer = new DataTransfer();
+        pdfs.forEach((file) => transfer.items.add(file));
+        fileInput.files = transfer.files;
+        displaySelectedFiles();
+        if (pdfs.length === 0 && event.dataTransfer.files.length > 0) {
+            uploadStatus.textContent = 'Only PDF files can be added.';
+            uploadStatus.classList.add('is-error');
+        }
+    });
+
+    document.getElementById('uploadForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const files = Array.from(fileInput.files || []);
+        if (files.length === 0) return;
+
+        const formData = new FormData();
+        files.forEach((file) => formData.append('files', file));
+        uploadButton.disabled = true;
+        uploadButton.textContent = 'Indexing documents…';
+        uploadStatus.classList.remove('is-error');
+        uploadStatus.textContent = 'Reading and indexing your PDFs.';
+
+        try {
+            const response = await fetch('/api/upload', { method: 'POST', body: formData });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || `Upload failed (HTTP ${response.status}).`);
+
+            const documentList = document.getElementById('indexedFilesContainer');
+            document.getElementById('emptyDocuments')?.remove();
+            files.forEach((file) => {
+                const row = document.createElement('div');
+                row.className = 'document-row';
+                const icon = document.createElement('span');
+                icon.className = 'document-icon';
+                icon.setAttribute('aria-hidden', 'true');
+                icon.textContent = 'PDF';
+                const name = document.createElement('span');
+                name.className = 'document-name';
+                name.textContent = file.name;
+                row.append(icon, name);
+                documentList.appendChild(row);
+            });
+            const chunkCount = Number(data.chunks) || 0;
+            document.getElementById('totalChunksStat').textContent = Number(document.getElementById('totalChunksStat').textContent) + chunkCount;
+            const uniqueNames = new Set(Array.from(documentList.querySelectorAll('.document-name'), (node) => node.textContent));
+            document.getElementById('uploadCount').textContent = `${uniqueNames.size} ${uniqueNames.size === 1 ? 'file' : 'files'}`;
+            uploadStatus.textContent = data.message || `Indexed ${files.length} ${files.length === 1 ? 'document' : 'documents'} successfully.`;
+            fileInput.value = '';
+            displaySelectedFiles();
+        } catch (error) {
+            uploadStatus.textContent = friendlyError(error.message || 'Could not upload the selected PDFs.');
+            uploadStatus.classList.add('is-error');
+        } finally {
+            uploadButton.textContent = 'Index documents';
+            uploadButton.disabled = fileInput.files.length === 0;
+        }
+    });
+
+    document.getElementById('queryForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const query = queryInput.value.trim();
+        if (!query) return;
+
+        const sendButton = document.getElementById('queryBtn');
+        const loading = document.getElementById('loading');
+        document.getElementById('welcomeMessage')?.remove();
+        sendButton.disabled = true;
+        loading.classList.add('is-visible');
+        uploadStatus.textContent = '';
+
+        try {
+            const response = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(data.error || `Could not answer that question (HTTP ${response.status}).`);
+
+            const turn = document.createElement('article');
+            turn.className = 'turn';
+            const question = document.createElement('div');
+            question.className = 'question';
+            question.textContent = query;
+            const answerLabel = document.createElement('div');
+            answerLabel.className = 'answer-label';
+            answerLabel.textContent = 'From your library';
+            const answer = document.createElement('div');
+            answer.className = 'answer';
+            answer.textContent = data.answer || 'No answer was returned.';
+            const source = document.createElement('div');
+            source.className = 'source';
+            source.textContent = `PDF  /  ${data.source || 'Source not specified'}`;
+            turn.append(question, answerLabel, answer, source);
+            conversation.insertBefore(turn, loading);
+            document.getElementById('totalQuestionsStat').textContent = Number(document.getElementById('totalQuestionsStat').textContent) + 1;
+            queryInput.value = '';
+            turn.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        } catch (error) {
+            showError(error.message || 'Could not reach the chat service. Check that the backend is running.');
+        } finally {
+            sendButton.disabled = false;
+            loading.classList.remove('is-visible');
+            queryInput.focus();
+        }
+    });
+
+    queryInput.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' && !event.shiftKey) {
+            event.preventDefault();
+            document.getElementById('queryForm').requestSubmit();
+        }
+    });
+</script>
+
+</body>
+</html>

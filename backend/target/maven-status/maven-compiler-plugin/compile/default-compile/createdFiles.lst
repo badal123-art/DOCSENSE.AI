@@ -1,0 +1,5 @@
+com\example\chatbot\ChatController.class
+com\example\chatbot\CorsConfig.class
+com\example\chatbot\DocumentService.class
+com\example\chatbot\ChatApplication.class
+com\example\chatbot\RAGService.class
